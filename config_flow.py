@@ -8,7 +8,7 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from . import pawsync
-from .const import DOMAIN
+from .const import CONF_FEED_FAST_POLL_DURATION, DEFAULT_FEED_FAST_POLL_DURATION, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,6 +17,11 @@ class PawsyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Pawsync."""
 
     VERSION = 1
+
+    @staticmethod
+    def async_get_options_flow(config_entry):
+        """Get the options flow for this handler."""
+        return PawsyncOptionsFlow()
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
@@ -59,3 +64,25 @@ class PawsyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_import(self, import_data):
         """Handle import from configuration.yaml."""
         return await self.async_step_user(import_data)
+
+
+class PawsyncOptionsFlow(config_entries.OptionsFlow):
+    """Handle Pawsync options."""
+
+    async def async_step_init(self, user_input=None):
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current_duration = self.config_entry.options.get(
+            CONF_FEED_FAST_POLL_DURATION, DEFAULT_FEED_FAST_POLL_DURATION
+        )
+        data_schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_FEED_FAST_POLL_DURATION, default=current_duration
+                ): vol.All(vol.Coerce(int), vol.Range(min=1)),
+            }
+        )
+
+        return self.async_show_form(step_id="init", data_schema=data_schema)
