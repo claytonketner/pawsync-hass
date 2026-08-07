@@ -1,26 +1,42 @@
-[tool.ruff]
-# Target Python version
-target-version = "py314"
+[project]
+name = "pawsync-hass"
+version = "0.1.0"
+description = "Home Assistant custom integration for Pawsync pet feeders"
+requires-python = ">=3.14.2"
+license = "MIT"
+dependencies = ["aiohttp"]
 
-# Standard line length
+[project.optional-dependencies]
+dev = [
+    "homeassistant>=2026.8.0",
+    "pytest-homeassistant-custom-component",
+    "ruff",
+]
+
+[tool.ruff]
+target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint]
-# Enable standard rules
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "B",  # flake8-bugbear
-    "C4", # flake8-comprehensions
-    "UP", # pyupgrade
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "UP",    # pyupgrade
+    "ASYNC", # flake8-async
+    "SIM",   # flake8-simplify
+    "RUF",   # ruff-specific rules
 ]
-ignore = ["E501"] # Ignore long lines for now to pass CI, as some Home Assistant patterns are long
 
 [tool.ruff.format]
-# Use double quotes, like Black
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,65 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "username": "Email",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Pawsync",
+        "description": "The password for {username} is no longer valid. Enter the current password to reconnect.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This Pawsync account is already configured",
+      "reauth_successful": "Reauthentication was successful"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "content_in_pot": { "name": "Food in pot" },
+      "bowl_weight": { "name": "Food in bowl" },
+      "bucket_surplus": { "name": "Bucket surplus" },
+      "last_feeding_amount": { "name": "Last feeding amount" },
+      "content_remain_time": { "name": "Remaining food time" },
+      "battery_percent": { "name": "Battery level" },
+      "wifi_rssi": { "name": "WiFi signal strength" },
+      "alert_count": { "name": "Alert count" },
+      "main_fw_version": { "name": "Main firmware version" },
+      "mcu_fw_version": { "name": "MCU firmware version" },
+      "last_dispensed_time": { "name": "Last dispensed time" },
+      "last_dispensed_amount": { "name": "Last dispensed amount" },
+      "last_eaten_time": { "name": "Last eaten time" },
+      "last_eaten_amount": { "name": "Last eaten amount" },
+      "last_eating_duration": { "name": "Last eating duration" }
+    },
+    "binary_sensor": {
+      "power_adapter": { "name": "Power adapter" },
+      "intelligent_feeding": { "name": "Intelligent feeding" },
+      "slow_feed": { "name": "Slow feed" },
+      "accurate_feeding": { "name": "Accurate feeding" },
+      "bowl_missing": { "name": "Food bowl" }
+    }
+  },
+  "services": {
+    "feed": {
+      "name": "Feed",
+      "description": "Requests a manual feed from a Pawsync device.",
+      "fields": {
+        "amount": {
+          "name": "Amount",
+          "description": "The amount to feed."
+        }
+      }
+    }
+  }
+}

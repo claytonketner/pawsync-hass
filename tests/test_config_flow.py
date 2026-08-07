@@ -1,46 +1,102 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-import pytest
-from custom_components.pawsync.config_flow import PawsyncConfigFlow
+from homeassistant import config_entries
+from homeassistant.data_entry_flow import FlowResultType
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.pawsync.api import PawsyncAuthError
+from custom_components.pawsync.const import DOMAIN
 
-@pytest.mark.asyncio
-async def test_config_flow_init():
-    flow = PawsyncConfigFlow()
-    flow.hass = MagicMock()
-    flow.async_show_form = MagicMock(return_value="form_result")
-
-    res = await flow.async_step_user()
-    assert res == "form_result"
-    flow.async_show_form.assert_called_once()
+USER_INPUT = {"username": "test@example.com", "password": "password123"}
 
 
-@pytest.mark.asyncio
-async def test_config_flow_user_success():
-    flow = PawsyncConfigFlow()
-    flow.hass = MagicMock()
-    flow.async_create_entry = MagicMock(return_value="entry_result")
-    flow.async_set_unique_id = AsyncMock(return_value=None)
-    flow._abort_if_unique_id_configured = MagicMock()
+def _patch_login(**kwargs):
+    return patch(
+        "custom_components.pawsync.config_flow.PawsyncClient.async_login",
+        new_callable=AsyncMock,
+        **kwargs,
+    )
 
-    user_input = {"username": "test@example.com", "password": "password123"}
 
-    with (
-        patch(
-            "custom_components.pawsync.config_flow.pawsync.login",
-            new_callable=AsyncMock,
-        ) as mock_login,
-        patch(
-            "custom_components.pawsync.config_flow.async_get_clientsession"
-        ) as mock_get_session,
-    ):
-        res = await flow.async_step_user(user_input)
-
-        mock_login.assert_called_once_with(
-            mock_get_session.return_value, "test@example.com", "password123"
+async def test_user_flow_success(hass):
+    with _patch_login():
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
         )
-        flow.async_set_unique_id.assert_called_once_with("test@example.com")
-        flow.async_create_entry.assert_called_once_with(
-            title="test@example.com", data=user_input
+        assert result["type"] is FlowResultType.FORM
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], USER_INPUT
         )
-        assert res == "entry_result"
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "test@example.com"
+    assert result["data"] == USER_INPUT
+
+
+async def test_user_flow_invalid_auth(hass):
+    with _patch_login(side_effect=PawsyncAuthError):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], USER_INPUT
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+
+
+async def test_user_flow_already_configured(hass):
+    MockConfigEntry(
+        domain=DOMAIN, unique_id="test@example.com", data=USER_INPUT
+    ).add_to_hass(hass)
+
+    with _patch_login():
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], USER_INPUT
+        )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_reauth_flow_success(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id="test@example.com", data=USER_INPUT
+    )
+    entry.add_to_hass(hass)
+
+    with _patch_login():
+        result = await entry.start_reauth_flow(hass)
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "reauth_confirm"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"password": "new_password"}
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["password"] == "new_password"
+
+
+async def test_reauth_flow_invalid_auth(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id="test@example.com", data=USER_INPUT
+    )
+    entry.add_to_hass(hass)
+
+    with _patch_login(side_effect=PawsyncAuthError):
+        result = await entry.start_reauth_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"password": "wrong_password"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}

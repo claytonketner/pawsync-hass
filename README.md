@@ -13,16 +13,15 @@ This custom integration allows you to connect your Pawsync pet feeder devices to
 
 1. Open **HACS** in Home Assistant.
 2. Click the three dots in the top right corner and select **Custom repositories**.
-3. Paste the URL of this repository (`https://github.com/asssaf/pawsync-hass`) into the **Repository** field.
+3. Paste the URL of this repository (`https://github.com/claytonketner/pawsync-hass`) into the **Repository** field.
 4. Select **Integration** as the Category and click **Add**.
 5. Click **Download** on the newly added integration card.
 6. Restart Home Assistant.
 
 ### Method 2: Manual Installation
 
-1. Create a directory named `pawsync` inside your Home Assistant `custom_components` folder.
-2. Copy all the files from this repository (except for `tests`, `.github`, and `.venv` related files) into that `custom_components/pawsync/` folder.
-3. Restart Home Assistant.
+1. Copy the `custom_components/pawsync/` folder from this repository into your Home Assistant `custom_components` folder.
+2. Restart Home Assistant.
 
 ## Configuration
 
@@ -46,12 +45,13 @@ pawsync:
 
 ### Feed
 
-Trigger a manual feeding for a device:
+Trigger a manual feeding for a device, targeting any of its Pawsync sensor entities:
 
 ```yaml
 service: pawsync.feed
+target:
+  entity_id: sensor.feeder_food_in_pot
 data:
-  entity_id: sensor.pawsync_device_id
   amount: 12
 ```
 
@@ -63,7 +63,7 @@ To set up the development environment, run the setup script:
 ./scripts/dev-setup.sh
 ```
 
-This script uses `mise` to manage Python 3.14 and `uv`, creates a local virtual environment (`.venv`), and installs development dependencies from `requirements-dev.txt` using uv.
+This script uses `mise` to manage Python 3.14 and `uv`, creates a local virtual environment (`.venv`), and installs the project in editable mode with its `dev` extras using uv.
 
 ### Linting and Formatting
 

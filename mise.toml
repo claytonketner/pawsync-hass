@@ -11,4 +11,4 @@ UV_CACHE_DIR = "/home/user/host-cache/uv"
 
 [tasks.setup]
 description = "Install development requirements"
-run = "uv pip install -r requirements-dev.txt"
+run = "uv pip install -e '.[dev]'"

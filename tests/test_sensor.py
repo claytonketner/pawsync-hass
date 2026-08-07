@@ -1,7 +1,12 @@
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
-from custom_components.pawsync.pawsync import Device
+import pytest
+from homeassistant.exceptions import HomeAssistantError
+
+from custom_components.pawsync.api import Device, PawsyncApiError, PawsyncAuthError
+from custom_components.pawsync.const import DOMAIN
+from custom_components.pawsync.coordinator import PawsyncData
 from custom_components.pawsync.sensor import (
     LOG_SENSOR_TYPES,
     SENSOR_TYPES,
@@ -9,20 +14,37 @@ from custom_components.pawsync.sensor import (
     PawsyncLogSensor,
 )
 
+DEVICE_ID = "id123"
+
+
+def make_device(device_prop):
+    return Device(
+        device_id=DEVICE_ID,
+        device_name="Feeder 1",
+        device_img="img_url",
+        device_default_img="default_url",
+        connection_type="wifi",
+        secondary_category="feeder",
+        device_model="model_x",
+        config_model="config_y",
+        biz_id="biz123",
+        pet_id="pet123",
+        device_prop=device_prop,
+    )
+
+
+def make_coordinator(device, pet_logs=None):
+    coordinator = MagicMock()
+    coordinator.last_update_success = True
+    coordinator.data = PawsyncData(
+        devices={DEVICE_ID: device}, pet_logs={DEVICE_ID: pet_logs or []}
+    )
+    return coordinator
+
 
 def test_sensors():
-    device_data = {
-        "deviceName": "Feeder 1",
-        "deviceImg": "img_url",
-        "deviceDefaultImg": "default_url",
-        "deviceId": "id123",
-        "connectionType": "wifi",
-        "secondaryCategory": "feeder",
-        "deviceModel": "model_x",
-        "configModel": "config_y",
-        "bizId": "biz123",
-        "petId": "pet123",
-        "deviceProp": {
+    device = make_device(
+        {
             "connectionStatus": "online",
             "contentInPot": 250,
             "bowlWeight": 5,
@@ -38,13 +60,13 @@ def test_sensors():
                 {"version": "1.0.85", "isMainFw": True},
                 {"version": "mcu_1.0", "pluginName": "mcuFw"},
             ],
-        },
-    }
-    device = Device(device_data)
-    coordinator = MagicMock()
-    coordinator.last_update_success = True
+        }
+    )
+    coordinator = make_coordinator(device)
 
-    sensors = [PawsyncDeviceSensor(coordinator, device, desc) for desc in SENSOR_TYPES]
+    sensors = [
+        PawsyncDeviceSensor(coordinator, DEVICE_ID, desc) for desc in SENSOR_TYPES
+    ]
 
     assert sensors[0].native_value == "online"
     assert sensors[1].native_value == 250
@@ -58,8 +80,8 @@ def test_sensors():
     assert sensors[9].native_value == "1.0.85"
     assert sensors[10].native_value == "mcu_1.0"
 
-    assert sensors[0]._attr_extra_state_attributes["device_id"] == "id123"
-    assert sensors[0]._attr_extra_state_attributes["device_name"] == "Feeder 1"
+    assert sensors[0].device_info["identifiers"] == {(DOMAIN, DEVICE_ID)}
+    assert sensors[0].unique_id == f"{DEVICE_ID}_primary"
 
     assert sensors[0].available is True
     coordinator.last_update_success = False
@@ -67,24 +89,7 @@ def test_sensors():
 
 
 def test_log_sensors():
-    device_data = {
-        "deviceName": "Feeder 1",
-        "deviceImg": "img_url",
-        "deviceDefaultImg": "default_url",
-        "deviceId": "id123",
-        "connectionType": "wifi",
-        "secondaryCategory": "feeder",
-        "deviceModel": "model_x",
-        "configModel": "config_y",
-        "bizId": "biz123",
-        "petId": "pet123",
-        "deviceProp": {},
-    }
-    device = Device(device_data)
-    coordinator = MagicMock()
-    coordinator.last_update_success = True
-    coordinator.config_entry.options = {}
-
+    device = make_device({})
     logs = [
         {"timestamp": 1713600000, "logType": "planFeeding", "value": 11},
         {
@@ -94,9 +99,10 @@ def test_log_sensors():
             "durationInS": 120,
         },
     ]
+    coordinator = make_coordinator(device, logs)
 
     sensors = [
-        PawsyncLogSensor(coordinator, device, desc, logs) for desc in LOG_SENSOR_TYPES
+        PawsyncLogSensor(coordinator, DEVICE_ID, desc) for desc in LOG_SENSOR_TYPES
     ]
 
     assert sensors[0].native_value == datetime.fromtimestamp(1713600000, tz=UTC)
@@ -104,3 +110,44 @@ def test_log_sensors():
     assert sensors[2].native_value == datetime.fromtimestamp(1713610000, tz=UTC)
     assert sensors[3].native_value == 8
     assert sensors[4].native_value == 120
+
+
+async def test_request_feed_success():
+    device = make_device({})
+    coordinator = make_coordinator(device)
+    coordinator.client.async_request_feed = AsyncMock()
+    coordinator.async_request_refresh = AsyncMock()
+
+    sensor = PawsyncDeviceSensor(coordinator, DEVICE_ID, SENSOR_TYPES[0])
+    await sensor.async_request_feed(15)
+
+    coordinator.client.async_request_feed.assert_called_once_with(device, 15)
+    coordinator.request_fast_poll.assert_called_once()
+    coordinator.async_request_refresh.assert_called_once()
+
+
+async def test_request_feed_reauthenticates_on_expired_token():
+    device = make_device({})
+    coordinator = make_coordinator(device)
+    coordinator.client.async_request_feed = AsyncMock(
+        side_effect=[PawsyncAuthError, None]
+    )
+    coordinator.client.async_login = AsyncMock()
+    coordinator.async_request_refresh = AsyncMock()
+
+    sensor = PawsyncDeviceSensor(coordinator, DEVICE_ID, SENSOR_TYPES[0])
+    await sensor.async_request_feed(15)
+
+    coordinator.client.async_login.assert_called_once()
+    assert coordinator.client.async_request_feed.call_count == 2
+
+
+async def test_request_feed_api_error_raises_home_assistant_error():
+    device = make_device({})
+    coordinator = make_coordinator(device)
+    coordinator.client.async_request_feed = AsyncMock(side_effect=PawsyncApiError)
+
+    sensor = PawsyncDeviceSensor(coordinator, DEVICE_ID, SENSOR_TYPES[0])
+
+    with pytest.raises(HomeAssistantError):
+        await sensor.async_request_feed(15)

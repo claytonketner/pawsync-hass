@@ -1,0 +1,18 @@
+feed:
+  name: Feed
+  description: Requests a manual feed from a Pawsync device.
+  target:
+    entity:
+      integration: pawsync
+      domain: sensor
+  fields:
+    amount:
+      name: Amount
+      description: The amount to feed.
+      required: true
+      example: 12
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
