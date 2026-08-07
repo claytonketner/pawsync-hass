@@ -46,7 +46,12 @@ class ConfigFlow:
         pass
 
 
+class OptionsFlow:
+    pass
+
+
 config_entries.ConfigFlow = ConfigFlow
+config_entries.OptionsFlow = OptionsFlow
 sys.modules["homeassistant.config_entries"] = config_entries
 
 # Mock const
@@ -185,6 +190,17 @@ bsensor_mod.BinarySensorEntityDescription = BinarySensorEntityDescription
 bsensor_mod.BinarySensorDeviceClass = BinarySensorDeviceClass
 sys.modules["homeassistant.components.binary_sensor"] = bsensor_mod
 
+# Mock components.switch
+switch_mod = MockModule()
+
+
+class SwitchEntity:
+    pass
+
+
+switch_mod.SwitchEntity = SwitchEntity
+sys.modules["homeassistant.components.switch"] = switch_mod
+
 # Get absolute path to the root directory
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -233,6 +249,13 @@ bsensor_spec = importlib.util.spec_from_file_location(
 bsensor_mod_impl = importlib.util.module_from_spec(bsensor_spec)
 sys.modules["custom_components.pawsync.binary_sensor"] = bsensor_mod_impl
 
+# Define custom_components.pawsync.switch
+switch_spec = importlib.util.spec_from_file_location(
+    "custom_components.pawsync.switch", os.path.join(ROOT_DIR, "switch.py")
+)
+switch_mod_impl = importlib.util.module_from_spec(switch_spec)
+sys.modules["custom_components.pawsync.switch"] = switch_mod_impl
+
 # Load / execute them in the correct dependency order
 const_spec.loader.exec_module(const_mod)
 pawsync_spec.loader.exec_module(pawsync_mod)
@@ -240,6 +263,7 @@ pawsync_init_spec.loader.exec_module(pawsync_init_mod)
 cf_spec.loader.exec_module(cf_mod)
 sensor_spec.loader.exec_module(sensor_mod_impl)
 bsensor_spec.loader.exec_module(bsensor_mod_impl)
+switch_spec.loader.exec_module(switch_mod_impl)
 
 # Prevent pytest from collecting or importing root integration files
 collect_ignore = [
@@ -247,6 +271,7 @@ collect_ignore = [
     "../pawsync.py",
     "../sensor.py",
     "../binary_sensor.py",
+    "../switch.py",
     "../config_flow.py",
     "../const.py",
     "../device_registry.py",

@@ -17,7 +17,14 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from . import pawsync
-from .const import DOMAIN, PAWSYNC_COORDINATOR, PLATFORMS, TOKEN_INVALID_CODE
+from .const import (
+    CONF_FEED_FAST_POLL_DURATION,
+    DEFAULT_FEED_FAST_POLL_DURATION,
+    DOMAIN,
+    PAWSYNC_COORDINATOR,
+    PLATFORMS,
+    TOKEN_INVALID_CODE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +44,34 @@ CONFIG_SCHEMA = vol.Schema(
 
 all_devices: dict[str, pawsync.Device] = {}
 sessions: dict[str, aiohttp.ClientSession] = {}
+
+# How often to poll while fast polling is active (from either trigger).
+FAST_POLL_INTERVAL = timedelta(seconds=15)
+NORMAL_POLL_INTERVAL = timedelta(minutes=15)
+
+
+def _apply_polling_interval(coordinator: DataUpdateCoordinator) -> None:
+    """Recompute the coordinator's update interval from all fast-poll triggers.
+
+    Two independent triggers can request fast polling: a feed service call
+    (time-limited, tracked by feed_fast_polling_until) and the manual fast
+    polling switch (tracked by manual_fast_polling). Each trigger only ever
+    touches its own flag, so this recomputes the effective interval from both
+    rather than one trigger clobbering the other's state.
+    """
+    if (
+        coordinator.feed_fast_polling_until is not None
+        and time.time() > coordinator.feed_fast_polling_until
+    ):
+        coordinator.feed_fast_polling_until = None
+
+    if (
+        coordinator.feed_fast_polling_until is not None
+        or coordinator.manual_fast_polling
+    ):
+        coordinator.update_interval = FAST_POLL_INTERVAL
+    else:
+        coordinator.update_interval = NORMAL_POLL_INTERVAL
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -99,8 +134,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                     coord = entry_data[PAWSYNC_COORDINATOR]
                     devices = (coord.data or {}).get("devices", [])
                     if any(d.deviceId == device_id for d in devices):
-                        coord.fast_polling_until = time.time() + 300
-                        coord.update_interval = timedelta(seconds=15)
+                        coord.feed_fast_polling_until = (
+                            time.time() + coord.feed_fast_poll_duration
+                        )
+                        _apply_polling_interval(coord)
                         hass.async_create_task(coord.async_request_refresh())
                         break
 
@@ -128,12 +165,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await pawsync.login(session, username, password)
 
     async def async_update():
-        if (
-            coordinator.fast_polling_until is not None
-            and time.time() > coordinator.fast_polling_until
-        ):
-            coordinator.update_interval = timedelta(minutes=15)
-            coordinator.fast_polling_until = None
+        _apply_polling_interval(coordinator)
 
         devices = await pawsync.getDeviceList(session, logger)
 
@@ -165,15 +197,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass,
         logger,
         name="pawsync-update",
-        update_interval=timedelta(minutes=15),
+        update_interval=NORMAL_POLL_INTERVAL,
         update_method=async_update,
         config_entry=entry,
     )
-    coordinator.fast_polling_until = None
+    coordinator.feed_fast_polling_until = None
+    coordinator.manual_fast_polling = False
+    coordinator.feed_fast_poll_duration = entry.options.get(
+        CONF_FEED_FAST_POLL_DURATION, DEFAULT_FEED_FAST_POLL_DURATION
+    )
     await coordinator.async_config_entry_first_refresh()
 
     async def re_login():
         await pawsync.login(session, username, password)
+
+    async def _async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        coordinator.feed_fast_poll_duration = entry.options.get(
+            CONF_FEED_FAST_POLL_DURATION, DEFAULT_FEED_FAST_POLL_DURATION
+        )
+
+    entry.async_on_unload(entry.add_update_listener(_async_update_options))
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
