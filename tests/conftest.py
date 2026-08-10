@@ -201,6 +201,36 @@ class SwitchEntity:
 switch_mod.SwitchEntity = SwitchEntity
 sys.modules["homeassistant.components.switch"] = switch_mod
 
+# Mock components.number
+number_mod = MockModule()
+
+
+class NumberEntity:
+    pass
+
+
+class NumberMode:
+    AUTO = "auto"
+    BOX = "box"
+    SLIDER = "slider"
+
+
+number_mod.NumberEntity = NumberEntity
+number_mod.NumberMode = NumberMode
+sys.modules["homeassistant.components.number"] = number_mod
+
+# Mock helpers.entity
+entity_mod = MockModule()
+
+
+class EntityCategory:
+    CONFIG = "config"
+    DIAGNOSTIC = "diagnostic"
+
+
+entity_mod.EntityCategory = EntityCategory
+sys.modules["homeassistant.helpers.entity"] = entity_mod
+
 # Get absolute path to the root directory
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -256,6 +286,13 @@ switch_spec = importlib.util.spec_from_file_location(
 switch_mod_impl = importlib.util.module_from_spec(switch_spec)
 sys.modules["custom_components.pawsync.switch"] = switch_mod_impl
 
+# Define custom_components.pawsync.number
+number_spec = importlib.util.spec_from_file_location(
+    "custom_components.pawsync.number", os.path.join(ROOT_DIR, "number.py")
+)
+number_mod_impl = importlib.util.module_from_spec(number_spec)
+sys.modules["custom_components.pawsync.number"] = number_mod_impl
+
 # Load / execute them in the correct dependency order
 const_spec.loader.exec_module(const_mod)
 pawsync_spec.loader.exec_module(pawsync_mod)
@@ -264,6 +301,7 @@ cf_spec.loader.exec_module(cf_mod)
 sensor_spec.loader.exec_module(sensor_mod_impl)
 bsensor_spec.loader.exec_module(bsensor_mod_impl)
 switch_spec.loader.exec_module(switch_mod_impl)
+number_spec.loader.exec_module(number_mod_impl)
 
 # Prevent pytest from collecting or importing root integration files
 collect_ignore = [
@@ -272,6 +310,7 @@ collect_ignore = [
     "../sensor.py",
     "../binary_sensor.py",
     "../switch.py",
+    "../number.py",
     "../config_flow.py",
     "../const.py",
     "../device_registry.py",

@@ -5,7 +5,7 @@ from homeassistant.const import Platform
 DOMAIN = "pawsync"
 PAWSYNC_COORDINATOR = "pawsync_coordinator"
 
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH, Platform.NUMBER]
 
 TOKEN_INVALID_CODE = -11008800  # Pawsync API code when auth token has expired
 

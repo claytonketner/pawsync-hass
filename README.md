@@ -7,6 +7,7 @@ This custom integration allows you to connect your Pawsync pet feeder devices to
 - **Sensor Entities:** Exposes device properties (e.g., food level) as Home Assistant sensors.
 - **Feed Service:** Trigger manual feeding via Home Assistant services.
 - **Fast Polling Switch:** Toggle a switch entity to poll a device every 15 seconds on demand, independent of the automatic fast polling that briefly follows a feed request.
+- **Feed Fast Poll Duration Number:** A configuration entity on each device's page to set how many seconds fast polling stays active after a feed request, without needing to open the integration's Options.
 
 ## Installation
 
@@ -45,7 +46,7 @@ pawsync:
 
 ### Options
 
-From the integration's entry in **Settings > Devices & Services**, click **Configure** to set how many seconds fast polling stays active after a feed request (default: 300).
+From the integration's entry in **Settings > Devices & Services**, click **Configure** to set how many seconds fast polling stays active after a feed request (default: 300). This is also available per-device as the "Feed fast poll duration" number entity under the device's Configuration section.
 
 ## Services
 
